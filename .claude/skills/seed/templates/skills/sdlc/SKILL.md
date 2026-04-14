@@ -63,6 +63,17 @@ Open via `mcp__github__create_pull_request`. No "generated with Claude" footer.
 - If CI or review follow-up is needed, hand off to `wait-for-pr` for Claude-specific polling and automation.
 - {{#if PLAYBOOK_PR_REVIEW}}Review classification still comes from `{{PLAYBOOK_PR_REVIEW}}`.{{else}}Classify review findings as: actionable bugs (must fix), in-scope nits (fix if quick), or out-of-scope nits (defer with a comment + follow-up issue).{{/if}}
 
+{{#if SELF_REVIEW_REQUIRED}}## Self-review (required for this project)
+
+This project has no {{SELF_REVIEW_REASON}}, so every PR must get an independent review before merge. Before requesting merge:
+
+1. Spawn a review subagent via the `Agent` tool with a prompt framing it as a **{{SELF_REVIEW_EXPERT}}** reviewing the diff for correctness, security, performance, and adherence to project conventions.
+2. Pass the agent the PR number and the full diff (`gh pr diff <N>`); instruct it to report blocking issues, in-scope nits, and out-of-scope suggestions separately, and to keep its reply under 400 words.
+3. Triage its findings using the same actionable/nit/out-of-scope classification above. Address blockers in a new commit on the branch; file follow-up issues for deferred items.
+4. Record in the PR body (under "Test plan") that a self-review was performed and link the resulting commits or issues.
+
+Never merge a PR for this project without completing the self-review cycle.{{/if}}
+
 ## Never
 
 - Commit directly to `main`.

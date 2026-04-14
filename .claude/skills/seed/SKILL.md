@@ -88,7 +88,34 @@ gh pr list --state merged --limit 5 --json number --jq '.[].number' \
 
 Known bots: `coderabbitai`, `coderabbitai[bot]`, `greptile-apps`, `greptile-bot`, `github-advanced-security[bot]`.
 
-If none found, default to `coderabbitai|greptile-apps|github-advanced-security`.
+If detection is ambiguous — greenfield repo, no merged PRs to inspect, or the scan turns up nothing — **do not silently default**. Ask the user directly:
+
+> "I couldn't detect any review bots on this repo. Do you have a review bot (CodeRabbit, Greptile, GHAS, etc.) configured, or should the auto-engineer self-review PRs via a subagent expert?"
+
+Record the answer. Set `REVIEW_BOT_LOGINS` to the confirmed bots (pipe-separated) or leave it empty if none.
+
+### CI test detection
+
+Also determine whether the repo runs automated tests in CI. Check for:
+
+- `.github/workflows/*.yml` containing any of: `test`, `pytest`, `cargo test`, `go test`, `npm test`, `jest`, `vitest`
+- Non-workflow CI configs: `.circleci/config.yml`, `.gitlab-ci.yml`, `azure-pipelines.yml`
+
+If no CI test job is found (or the repo is greenfield with no workflows at all), record this — it feeds the self-review decision below.
+
+### Self-review decision
+
+If **any** of the following are true, enable the SDLC self-review section for this project:
+
+- No review bots configured (per the question above), **or**
+- No CI test job detected, **or**
+- Greenfield repo (no merged PRs, no `.git` history beyond the initial commit)
+
+When enabling self-review, ask the user:
+
+> "What kind of expert reviewer should the auto-engineer impersonate for self-reviews? (e.g. 'senior Go backend engineer', 'security-focused Python reviewer', 'React accessibility reviewer')"
+
+Use their answer for `SELF_REVIEW_EXPERT`. Set `SELF_REVIEW_REASON` to the triggering condition (`"review bots"`, `"CI tests"`, or `"review bots or CI tests"`).
 
 ---
 
@@ -156,7 +183,10 @@ PLAYBOOK_PRIORITIZATION → path if playbooks enabled, else ""
 LABEL_TAXONOMY      → inline description of the project's label scheme
 PROJECT_IMAGE       → "<GITHUB_REPO>-auto-engineer"
 PROJECT_WORKDIR     → "/home/agent/work"
-REVIEW_BOT_LOGINS   → detected or default
+REVIEW_BOT_LOGINS   → detected or user-confirmed (empty if none)
+SELF_REVIEW_REQUIRED → "true" when no review bots, no CI tests, or greenfield (gates the SDLC self-review block)
+SELF_REVIEW_EXPERT  → user-provided expert persona for the review subagent (e.g. "senior Go backend engineer")
+SELF_REVIEW_REASON  → short phrase naming what's missing ("review bots", "CI tests", "review bots or CI tests")
 TOOLCHAIN_SETUP     → Dockerfile snippet installing the target project's language toolchain (see below)
 ```
 
