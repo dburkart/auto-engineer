@@ -157,7 +157,23 @@ LABEL_TAXONOMY      → inline description of the project's label scheme
 PROJECT_IMAGE       → "<GITHUB_REPO>-auto-engineer"
 PROJECT_WORKDIR     → "/home/agent/work"
 REVIEW_BOT_LOGINS   → detected or default
+TOOLCHAIN_SETUP     → Dockerfile snippet installing the target project's language toolchain (see below)
 ```
+
+### `TOOLCHAIN_SETUP` — per-stack Dockerfile snippets
+
+The base Dockerfile is intentionally language-agnostic. Based on the detected stack (Phase 1), substitute `{{TOOLCHAIN_SETUP}}` in `templates/Dockerfile` with the appropriate snippet. If the user confirmed/overrode the stack in Phase 2, use that. Ask the user to confirm the exact toolchain version when the repo pins one (e.g. `go.mod` `go` directive, `rust-toolchain.toml`, `.nvmrc`, `.python-version`).
+
+| Stack | Snippet (run as `USER agent`, before `WORKDIR`) |
+|---|---|
+| Rust | `COPY --chown=agent:agent rust-toolchain.toml /tmp/toolchain/ 2>/dev/null || true`<br>`RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh -s -- -y --default-toolchain stable --profile minimal --component clippy,rustfmt`<br>`ENV PATH=/home/agent/.cargo/bin:$PATH` |
+| Go | `USER root`<br>`RUN curl -fsSL https://go.dev/dl/go{{GO_VERSION}}.linux-$(dpkg --print-architecture).tar.gz \| tar -C /usr/local -xz`<br>`ENV PATH=/usr/local/go/bin:/home/agent/go/bin:$PATH GOPATH=/home/agent/go`<br>`RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest` *(then `USER agent`)* |
+| Node/TS | `# Node is already installed in the base image via nodesource; no extra toolchain needed.`<br>*(If the project pins a Node version via `.nvmrc` or `engines.node`, install `nvm` or swap to that version instead.)* |
+| Python | `RUN pip install --user --no-cache-dir uv ruff pytest build`<br>*(If the repo uses Poetry/Hatch/PDM, install that instead of `uv`.)* |
+| Make-based (no detectable language) | Ask the user which language toolchains the Makefile drives, then use the matching snippet(s) above. |
+| Unknown | Ask the user: "What language/runtime does this project need in the container?" and construct the snippet from their answer. |
+
+Detect pinned versions when possible and substitute them into the snippet (e.g. read the `go` line from `go.mod` for `GO_VERSION`, default to the latest stable if absent). Never leave `{{GO_VERSION}}` or similar placeholders in the final Dockerfile.
 
 For the `{{#if PLAYBOOK_X}}...{{/if}}` blocks in templates: if the playbook path is non-empty, include the block; otherwise strip it (use the `else` branch where present).
 
@@ -199,6 +215,8 @@ If `settings.local.json` already exists, **do not overwrite** — note in the re
 | `templates/docker-entrypoint.sh` | `<target>/scripts/docker-entrypoint.sh` |
 
 If any of these already exist, ask the user before overwriting (a quick single prompt listing all conflicts).
+
+When writing `Dockerfile`, substitute `{{TOOLCHAIN_SETUP}}` with the per-stack snippet resolved in Phase 3. The final Dockerfile must contain a working toolchain install for the target project's language — never leave the placeholder unresolved and never ship a Dockerfile that lacks the language runtime the target project needs to build/test.
 
 After writing scripts:
 

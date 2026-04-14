@@ -28,19 +28,9 @@ ENV HOME=/home/agent \
     PATH=/home/agent/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # --------------------------------------------------------------------
-# Project-specific toolchain setup
-#
-# Add any language runtime or toolchain installation here. This base
-# image intentionally omits language toolchains so it stays minimal.
-#
-# Examples:
-#   Rust:   COPY --chown=agent:agent rust-toolchain.toml /tmp/toolchain/
-#           RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-#                   | sh -s -- -y --default-toolchain none --profile minimal \
-#            && cd /tmp/toolchain && rustup show active-toolchain
-#   Python: RUN pip install --user uv
-#   Node:   (already available system-wide via the apt install above)
+# Project-specific toolchain setup (injected by `seed` based on stack)
 # --------------------------------------------------------------------
+{{TOOLCHAIN_SETUP}}
 
 WORKDIR /home/agent/work
 
