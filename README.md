@@ -2,6 +2,10 @@
 
 A general-purpose Claude Code toolkit for autonomous, closed-loop software delivery. Run it from this repo to seed any project with the skills and Docker infrastructure Claude needs to pick issues, implement changes, push PRs, respond to CI and review feedback, and merge — without human intervention between steps.
 
+Inspired by auto-researcher by @karpathy.
+
+This toolkit is a starting off point; in order for it to be effective in your project, you will have to think critically about the autonomous software development lifecycle. Different projects require different things!
+
 ## Demo
 
 Perhaps you want to see a demo first, before deciding if this is for you.
