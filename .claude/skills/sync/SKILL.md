@@ -1,12 +1,12 @@
 ---
 name: sync
-description: Two-way sync between a seeded project's .claude/skills/ and this auto-engineer repo's templates/skills/. Detects drift in either direction, presents per-skill diffs, and lets you pull from template, push to template, or skip. Harness-internal tool — never seeded into target projects. Invoked as /sync.
+description: Two-way sync between a seeded project and this auto-engineer repo's templates — covers skills, Dockerfile, and scripts. Detects drift in either direction, presents per-file diffs, and lets you pull from template, push to template, or skip. Harness-internal tool — never seeded into target projects. Invoked as /sync.
 argument-hint: [<target-project-path>]
 ---
 
 # sync
 
-Two-way sync between a seeded project and this auto-engineer repo's templates. Detects drift in either direction and lets you resolve it interactively, skill by skill.
+Two-way sync between a seeded project and this auto-engineer repo's templates. Detects drift in skills, Dockerfile, and scripts; lets you resolve each divergence interactively.
 
 This is a harness-internal development tool. It lives only in `.claude/skills/sync/` — the `seed` skill never copies it to target projects.
 
@@ -23,18 +23,20 @@ If not provided as an argument, ask:
 
 > "What's the path to the seeded project you want to sync with? (absolute path)"
 
-Resolve to an absolute path. Verify the directory exists and contains `.claude/skills/` inside it. Abort with a clear error if not found.
+Resolve to an absolute path. Verify the directory exists. Abort with a clear error if not found.
 
-All reads and writes to the target project use `<target>/` as the root. All reads and writes to templates use `<ae-repo>/templates/skills/` where `<ae-repo>` is the directory containing this skill file (two levels up from `.claude/skills/sync/`).
+All reads and writes to the target project use `<target>/` as the root. The auto-engineer repo root (`<ae-repo>`) is the directory that contains both `.claude/` and `templates/` as direct children — from this skill file's location at `.claude/skills/sync/SKILL.md`, that is three levels up.
 
 ---
 
-## Step 1 — Discover skill pairs
+## Step 1 — Discover sync candidates
 
-Enumerate all skill names on both sides:
+Sync covers three artifact groups:
 
-- **Template side:** list subdirectory names under `<ae-repo>/templates/skills/` (each subdir with a `SKILL.md` is a syncable skill).
-- **Target side:** list subdirectory names under `<target>/.claude/skills/` that have a `SKILL.md`.
+### Group A — Skills
+
+- **Template side:** subdirectories under `<ae-repo>/templates/skills/` that contain a `SKILL.md`.
+- **Target side:** subdirectories under `<target>/.claude/skills/` that contain a `SKILL.md`.
 
 Classify each skill name:
 
@@ -44,62 +46,97 @@ Classify each skill name:
 | **Template-only** | In `templates/skills/` but not in target (never seeded, or intentionally absent) |
 | **Target-only** | In `<target>/.claude/skills/` but no template counterpart (e.g. `seed`, `sync`, new user skills) |
 
-Note template-only and target-only skills in the summary, but only paired skills participate in inward sync. Target-only skills are outward-sync candidates.
+All three groups participate in the interactive resolution loop:
+- **Paired** skills: full pull / push / diff / skip menu.
+- **Template-only** skills: offer `[p] pull` to seed the skill into the target, or `[s] skip`.
+- **Target-only** skills: offer `[P] push` to promote to templates, or `[s] skip`.
+
+Also sync companion files alongside `SKILL.md` where they exist (e.g. `usage/probe.sh`). Treat each companion file as its own sync unit with the same pull/push/skip logic.
+
+### Group B — Dockerfile
+
+Single file pair:
+
+| Template | Target |
+|---|---|
+| `<ae-repo>/templates/Dockerfile` | `<target>/Dockerfile` |
+
+Compare the two. Note: the template contains `{{TOOLCHAIN_SETUP}}` which seed replaces with a stack-specific snippet. If the target Dockerfile has that placeholder resolved, that is expected — do not treat it as a conflict. Flag only changes outside the toolchain block.
+
+### Group C — Scripts
+
+| Template | Target |
+|---|---|
+| `<ae-repo>/templates/sandbox.sh` | `<target>/scripts/sandbox.sh` |
+| `<ae-repo>/templates/auto-engineer.sh` | `<target>/scripts/auto-engineer.sh` |
+| `<ae-repo>/templates/restart-loop.sh` | `<target>/scripts/restart-loop.sh` |
+| `<ae-repo>/templates/docker-entrypoint.sh` | `<target>/scripts/docker-entrypoint.sh` |
+
+For each script, check whether the target file exists. If not, classify as "template-only" and offer to pull it in.
 
 ---
 
-## Step 2 — Diff each paired skill
+## Step 2 — Diff each paired artifact
 
-For each paired skill, read both files with the Read tool and compare content.
+For each paired file, read both with the Read tool and compare content. **Do not use shell diff commands.**
 
-**Do not use shell diff commands.** Compare section-by-section by splitting on `##` headings. For each section heading:
+**For skills:** Compare section-by-section by splitting on `##` headings. For each heading:
+- Present in template only → "inward available"
+- Present in target only → "outward candidate"
+- Present in both but with differing content → "conflict" or "minor drift"
 
-- Present in template only → "inward available" (template has content the target is missing)
-- Present in target only → "outward candidate" (target has content the template is missing)
-- Present in both but with differing content → "conflict" or "minor drift" depending on extent
-
-Assign an overall status per skill:
+**For Dockerfile and scripts:** Compare the full content. Assign one of:
 
 | Status | Meaning |
 |---|---|
-| `in sync` | Files are identical |
-| `inward available` | Template has additions/changes absent from target |
-| `outward candidate` | Target has additions/changes absent from template |
+| `in sync` | Files are identical (ignoring resolved `{{TOOLCHAIN_SETUP}}` in Dockerfile) |
+| `inward available` | Template has changes absent from target |
+| `outward candidate` | Target has changes absent from template |
 | `conflict` | Both sides have unique changes |
 
 ---
 
 ## Step 3 — Present unified summary
 
-Before asking for any action, print a full table of all skills:
+Before asking for any action, print a full table grouped by artifact type:
 
 ```
 Sync summary for <target>:
 
-Paired skills:
+Skills — Paired:
   auto-engineer    conflict          (both sides have unique sections)
   sdlc             inward available  (template has new "Never" section)
   file-issue       in sync
   wait-for-pr      outward candidate (target has extra polling logic)
   usage            in sync
-  context-reset    inward available  (template updated trigger conditions)
 
-Template-only (not in target — skipped):
-  <none> | <list>
+Skills — Template-only (offer to pull into target):
+  context-reset    (not yet in target)
 
-Target-only (no template counterpart):
+Skills — Target-only (offer to push to templates):
   seed             (harness-internal, push-only)
-  sync             (this skill, skip)
+  sync             (this skill — always skipped)
   <any user-created skills>
+
+Dockerfile:
+  in sync | inward available | outward candidate | conflict
+
+Scripts:
+  sandbox.sh           in sync
+  auto-engineer.sh     inward available  (template updated quota logic)
+  restart-loop.sh      in sync
+  docker-entrypoint.sh in sync
 ```
 
 ---
 
 ## Step 4 — Interactive resolution loop
 
-Process each skill that is NOT `in sync`, in the order shown in the summary.
+Process each artifact that is NOT `in sync`, in the order shown in the summary (skills first, then Dockerfile, then scripts).
 
-For each diverging **paired** skill, present the diff (section headings that differ), then offer:
+**For diverging paired artifacts:**
+
+Present the diff (section headings for skills; changed lines for Dockerfile/scripts), then offer:
 
 ```
 [p] pull  — overwrite target file with template version
@@ -108,18 +145,27 @@ For each diverging **paired** skill, present the diff (section headings that dif
 [s] skip  — leave both sides unchanged
 ```
 
-For **conflict** skills: always show the diff first before asking for action. Do not auto-resolve conflicts.
+For **conflict** and **outward candidate** artifacts: always show the diff first. Add a confirmation prompt before applying a pull — the target's changes would be destroyed:
 
-For **target-only** skills (excluding `sync` itself): offer only:
+> "This file has local changes that would be overwritten by the pull. Continue? [y/N]"
+
+**For template-only artifacts** (offer to pull into target):
 
 ```
-[P] push  — copy target file into templates/skills/<name>/SKILL.md (creates new template)
+[p] pull  — copy template version into target
 [s] skip  — leave as-is
 ```
 
-**Placeholder safety check (before any push):** Before pushing a target file back to templates, scan it for patterns that look like resolved project-specific values — e.g. a hardcoded repo name like `dburkart/my-project`, a resolved `{{GITHUB_USER}}` value, or any string that was a placeholder in the template but is now a literal value in the target. If found, warn:
+**For target-only skills** (excluding `sync` itself):
 
-> "This file contains what may be resolved placeholder values (e.g. 'my-project-name'). Pushing it to templates could bake in project-specific values. Continue anyway? [y/N]"
+```
+[P] push  — copy target file into templates/skills/<name>/SKILL.md
+[s] skip  — leave as-is
+```
+
+**Placeholder safety check (before any push):** Before pushing any target file back to templates, scan it for resolved project-specific values — e.g. a hardcoded repo name, a resolved `{{GITHUB_USER}}` value, or any literal that looks like it was a placeholder. If found, warn:
+
+> "This file may contain resolved project-specific values. Pushing it to templates could bake them in. Continue anyway? [y/N]"
 
 Only proceed with the push if the user confirms.
 
@@ -129,11 +175,15 @@ Only proceed with the push if the user confirms.
 
 Use the **Read** and **Write** tools only — no shell copy commands.
 
-- **Pull:** Read `<ae-repo>/templates/skills/<name>/SKILL.md`, Write to `<target>/.claude/skills/<name>/SKILL.md`.
-- **Push (paired):** Read `<target>/.claude/skills/<name>/SKILL.md`, Write to `<ae-repo>/templates/skills/<name>/SKILL.md`.
-- **Push (target-only):** Read `<target>/.claude/skills/<name>/SKILL.md`, Write to `<ae-repo>/templates/skills/<name>/SKILL.md` (creates new template entry).
+- **Pull (skill):** Read `<ae-repo>/templates/skills/<name>/SKILL.md`, Write to `<target>/.claude/skills/<name>/SKILL.md`.
+- **Pull (Dockerfile):** Read `<ae-repo>/templates/Dockerfile`, Write to `<target>/Dockerfile`.
+- **Pull (script):** Read `<ae-repo>/templates/<script>.sh`, Write to `<target>/scripts/<script>.sh`.
+- **Push (paired skill):** Read `<target>/.claude/skills/<name>/SKILL.md`, Write to `<ae-repo>/templates/skills/<name>/SKILL.md`.
+- **Push (target-only skill):** Read `<target>/.claude/skills/<name>/SKILL.md`, Write to `<ae-repo>/templates/skills/<name>/SKILL.md` (creates new template entry).
+- **Push (Dockerfile):** Read `<target>/Dockerfile`, Write to `<ae-repo>/templates/Dockerfile`.
+- **Push (script):** Read `<target>/scripts/<script>.sh`, Write to `<ae-repo>/templates/<script>.sh`.
 
-Confirm each write succeeded before moving to the next skill.
+Confirm each write succeeded before moving to the next file.
 
 ---
 
@@ -145,22 +195,25 @@ Print a final summary:
 Sync complete:
 
   Pulled from template (target updated):
-    sdlc, context-reset
+    Skills: sdlc
+    Scripts: auto-engineer.sh
 
   Pushed to template (template updated):
-    wait-for-pr
+    Skills: wait-for-pr
 
   Skipped:
-    auto-engineer (conflict, deferred)
+    Skills: auto-engineer (conflict, deferred), seed (target-only, skipped)
+    Dockerfile: skipped
 
   In sync (no action needed):
-    file-issue, usage
+    Skills: file-issue, usage
+    Scripts: sandbox.sh, restart-loop.sh, docker-entrypoint.sh
 
 Reminder: pushed changes to templates/ should be committed and PR'd to
 dburkart/auto-engineer so they benefit future seeded projects.
 ```
 
-If any skills were pushed to templates, remind the user to commit and open a PR so the improvements flow back to the canonical source.
+If any files were pushed to templates, remind the user to commit and open a PR.
 
 ---
 
@@ -168,7 +221,8 @@ If any skills were pushed to templates, remind the user to commit and open a PR 
 
 - Auto-resolve conflicts — always surface them and let the user decide.
 - Push a target file with resolved project-specific placeholder values without explicit user confirmation.
-- Sync the `sync` skill itself (this file) — it has no template counterpart by design.
+- Sync the `sync` skill itself — it has no template counterpart by design.
 - Use shell `cp` or `rsync` — use the Read and Write tools only.
-- Modify files outside `<ae-repo>/templates/skills/` and `<target>/.claude/skills/` — do not touch playbooks, Dockerfiles, scripts, or settings.
+- Modify files outside `<ae-repo>/templates/` and `<target>/` (skills, Dockerfile, scripts) — do not touch playbooks, settings, or `.gitignore`.
 - Create commits or push — the user should review and commit synced files themselves.
+- Treat a resolved `{{TOOLCHAIN_SETUP}}` in the target Dockerfile as a conflict — that substitution is intentional and expected.
