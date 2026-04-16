@@ -27,10 +27,6 @@ USER agent
 ENV HOME=/home/agent \
     PATH=/home/agent/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# --------------------------------------------------------------------
-# Project-specific toolchain setup (injected by `seed` based on stack)
-# --------------------------------------------------------------------
-
 WORKDIR /home/agent/work
 
 COPY --chown=root:root scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
