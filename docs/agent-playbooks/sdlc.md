@@ -45,7 +45,7 @@ Closes #<N>
 This repo is a toolkit factory. Most skills have two copies:
 
 | Path | What it is |
-|------|-----------|
+|------|------------|
 | `templates/skills/<skill>/SKILL.md` | Canonical source shipped to user projects via `seed` |
 | `.claude/skills/<skill>/SKILL.md` | Local instance used to develop this repo |
 

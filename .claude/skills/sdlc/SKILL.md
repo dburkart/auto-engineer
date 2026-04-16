@@ -79,11 +79,11 @@ Never merge a PR for this project without completing the self-review cycle.
 This repo is a **toolkit factory**. There are two copies of most skills:
 
 | Path | What it is |
-|------|-----------|
+|------|------------|
 | `templates/skills/<skill>/SKILL.md` | The canonical source shipped to user projects via `seed` |
 | `.claude/skills/<skill>/SKILL.md` | The local instance used to develop *this* repo |
 
-**Issues and feature work always target `templates/`.**  The local instance (`.claude/skills/`) is only touched when the task is explicitly about the development harness itself.
+**Issues and feature work always target `templates/`.** The local instance (`.claude/skills/`) is only touched when the task is explicitly about the development harness itself.
 
 Before editing any skill file, confirm it lives under `templates/skills/`. If you find yourself reaching for `.claude/skills/`, stop and re-read the issue — you almost certainly have the wrong file.
 
