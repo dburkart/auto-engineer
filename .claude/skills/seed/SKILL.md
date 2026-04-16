@@ -205,7 +205,15 @@ The base Dockerfile is intentionally language-agnostic. Based on the detected st
 
 Detect pinned versions when possible and substitute them into the snippet (e.g. read the `go` line from `go.mod` for `GO_VERSION`, default to the latest stable if absent). Never leave `{{GO_VERSION}}` or similar placeholders in the final Dockerfile.
 
-For the `{{#if PLAYBOOK_X}}...{{/if}}` blocks in templates: if the playbook path is non-empty, include the block; otherwise strip it (use the `else` branch where present).
+For all `{{#if VAR}}...{{/if}}` blocks in templates: evaluate each against the collected values and either include or strip the block. Key conditionals:
+
+| Block | Include when | Strip when |
+|---|---|---|
+| `{{#if PLAYBOOK_X}}` | playbook path is non-empty | playbook path is empty |
+| `{{#if REVIEW_BOT_LOGINS}}` | `REVIEW_BOT_LOGINS` is non-empty | `REVIEW_BOT_LOGINS` is empty (self-review mode) |
+| `{{#if HITL_MODE}}` | HITL mode enabled | HITL mode not enabled |
+
+Never leave raw `{{#if ...}}` / `{{/if}}` markers in the written output — the rendered skill must be plain markdown with no template syntax remaining.
 
 ---
 
