@@ -6,7 +6,7 @@ argument-hint: [<target-path>]
 
 # seed
 
-Configures the auto-engineer toolkit for a target project. Always runs from within this auto-engineer repo — it never copies itself. Reads templates from `.claude/skills/seed/templates/` (relative to this repo's root), substitutes `{{PLACEHOLDER}}` values, and writes the results into the target project.
+Configures the auto-engineer toolkit for a target project. Always runs from within this auto-engineer repo — it never copies itself. Reads templates from `templates/` (relative to this repo's root), substitutes `{{PLACEHOLDER}}` values, and writes the results into the target project.
 
 **Does not touch any pre-existing `.claude/` directory in the target.** Skills are written into `.claude/skills/` but only for skill names that don't already exist there. `settings.local.json` and `.claude/.gitignore` are only created if absent.
 
@@ -211,7 +211,7 @@ For the `{{#if PLAYBOOK_X}}...{{/if}}` blocks in templates: if the playbook path
 
 ## Phase 4 — Write files
 
-Templates are read from this repo at `.claude/skills/seed/templates/`. All output paths are relative to `<target>/`.
+Templates are read from this repo at `templates/`. All output paths are relative to `<target>/`.
 
 ### Skills
 
@@ -337,7 +337,7 @@ Seeded auto-engineer into <target>:
 [If settings.local.json was skipped:]
   Note: .claude/settings.local.json already existed and was not modified.
   To allow auto-engineer to run without prompts, merge these permissions:
-    <path-to-this-repo>/.claude/skills/seed/templates/settings.local.json
+    <path-to-this-repo>/templates/settings.local.json
 
 Next steps:
   1. cd <target> && review the written files
