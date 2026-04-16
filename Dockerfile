@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-        ca-certificates curl git make sudo \
+        ca-certificates curl git jq make sudo \
         gnupg \
  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
         | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
@@ -30,7 +30,6 @@ ENV HOME=/home/agent \
 # --------------------------------------------------------------------
 # Project-specific toolchain setup (injected by `seed` based on stack)
 # --------------------------------------------------------------------
-# Shell/Bash only — no additional runtime needed.
 
 WORKDIR /home/agent/work
 
