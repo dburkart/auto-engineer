@@ -225,6 +225,7 @@ Write only skill files that do **not** already exist in `<target>/.claude/skills
 | `templates/skills/wait-for-pr/SKILL.md` | `<target>/.claude/skills/wait-for-pr/SKILL.md` |
 | `templates/skills/usage/SKILL.md` | `<target>/.claude/skills/usage/SKILL.md` |
 | `templates/skills/usage/probe.sh` | `<target>/.claude/skills/usage/probe.sh` |
+| `templates/skills/context-reset/SKILL.md` | `<target>/.claude/skills/context-reset/SKILL.md` |
 
 ### Config files (only if not already present)
 
@@ -242,6 +243,7 @@ If `settings.local.json` already exists, **do not overwrite** — note in the re
 | `templates/Dockerfile` | `<target>/Dockerfile` |
 | `templates/sandbox.sh` | `<target>/scripts/sandbox.sh` |
 | `templates/auto-engineer.sh` | `<target>/scripts/auto-engineer.sh` |
+| `templates/restart-loop.sh` | `<target>/scripts/restart-loop.sh` |
 | `templates/docker-entrypoint.sh` | `<target>/scripts/docker-entrypoint.sh` |
 
 If any of these already exist, ask the user before overwriting (a quick single prompt listing all conflicts).
@@ -251,7 +253,7 @@ When writing `Dockerfile`, substitute `{{TOOLCHAIN_SETUP}}` with the per-stack s
 After writing scripts:
 
 ```sh
-chmod +x <target>/scripts/sandbox.sh <target>/scripts/auto-engineer.sh <target>/scripts/docker-entrypoint.sh
+chmod +x <target>/scripts/sandbox.sh <target>/scripts/auto-engineer.sh <target>/scripts/restart-loop.sh <target>/scripts/docker-entrypoint.sh
 ```
 
 ### Permissions to add to settings.local.json
