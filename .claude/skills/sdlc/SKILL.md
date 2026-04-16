@@ -74,8 +74,24 @@ This project has no review bots or CI tests, so every PR must get an independent
 
 Never merge a PR for this project without completing the self-review cycle.
 
+## Template vs. instance rule
+
+This repo is a **toolkit factory**. There are two copies of most skills:
+
+| Path | What it is |
+|------|-----------|
+| `templates/skills/<skill>/SKILL.md` | The canonical source shipped to user projects via `seed` |
+| `.claude/skills/<skill>/SKILL.md` | The local instance used to develop *this* repo |
+
+**Issues and feature work always target `templates/`.**  The local instance (`.claude/skills/`) is only touched when the task is explicitly about the development harness itself.
+
+Before editing any skill file, confirm it lives under `templates/skills/`. If you find yourself reaching for `.claude/skills/`, stop and re-read the issue — you almost certainly have the wrong file.
+
+**Exception — `seed`:** The seed skill does not seed itself. Its canonical source lives at `.claude/skills/seed/SKILL.md` (there is no `templates/skills/seed/`). Issue work targeting seed goes to `.claude/skills/seed/`.
+
 ## Never
 
 - Commit directly to `main`.
 - Force-push or rewrite reviewed commits unless the user explicitly approves.
 - Merge a PR on the user's behalf unless asked.
+- Edit `.claude/skills/<skill>/` for issue work — always edit the corresponding `templates/skills/<skill>/` file instead (except `seed`, which has no template copy).
