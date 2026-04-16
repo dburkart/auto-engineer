@@ -151,16 +151,8 @@ Record the PR open time. Run one poll tick (step 6b below), then either proceed 
    ```sh
    gh pr checks <M> --json name,state,bucket,link
    ```
-2. Count review-bot activity:
-   ```sh
-   gh api "repos/dburkart/auto-engineer/issues/<M>/comments" \
-     --jq '[.[] | select(.user.login | test(""))] | length'
-   ```
-   Also fetch formal reviews via `mcp__github__get_pull_request_reviews`.
-
 3. Evaluate "done" criteria:
    - Every check is in a terminal state (`success`, `failure`, `skipped`, `cancelled`, `neutral`, `timed_out`, `stale`) — nothing `in_progress`, `queued`, or `pending`.
-   - At least one review-bot comment exists **or** 30 minutes have elapsed since PR opened.
 
 4. **If done**: proceed to step 6c.
 
@@ -177,7 +169,6 @@ Record the PR open time. Run one poll tick (step 6b below), then either proceed 
    |---|---|
    | 0–10 min | 120 |
    | 10–30 min | 180 |
-   | 30 min+ (bots only) | 1200 |
    Never use 300 s — it's a cache-miss with no payoff.
 
    If any check is `action_required` → **stop** instead (human must approve).
@@ -214,7 +205,6 @@ ScheduleWakeup(
 Only merge when **all** are true:
 - Every CI check is `success` or `skipped` (none `failure`, `action_required`, `timed_out`, `pending`).
 - No unresolved actionable review findings.
-- Either ≥1 review bot posted and every actionable finding is addressed, **or** 30 min elapsed since PR open with nothing actionable.
 
 Use the repo's configured merge method (check `gh repo view --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed` and prefer squash if available, otherwise the repo default):
 
