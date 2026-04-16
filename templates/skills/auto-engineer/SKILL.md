@@ -35,7 +35,9 @@ Parse these flags on every entry before doing any work:
 | `--iteration N` | Current cycle number (1-indexed). Absent → treat as 1. |
 | `--phase wait` | Re-entry into the PR-wait poll loop (jump to step 6b). Requires `--pr`. |
 | `--pr M` | PR number being waited on (only meaningful with `--phase wait`). |
-| `#NN` | Scope to a single issue for one cycle, then stop without rescheduling. |
+{{#if HITL_MODE}}| `--hitl` | Human-in-the-loop mode. After opening a PR (step 5), pause for human review before entering the CI/merge loop. Sticky — carry in every `ScheduleWakeup` call for the rest of the session. |
+| `--hitl-approved` | User has reviewed the PR and approved resuming. Skip the HITL pause and proceed directly into the normal CI/merge wait loop (step 6a). Only meaningful alongside `--phase wait`. |
+{{/if}}| `#NN` | Scope to a single issue for one cycle, then stop without rescheduling. |
 
 A bare `/auto-engineer` is iteration 1, phase "pick".
 
@@ -136,6 +138,40 @@ On failure: diagnose and fix in place. **Maximum 3 fix attempts per cycle.** If 
 - **Always include `Closes #<N>`** on its own line near the top of the PR body. Without it, the squash-merge won't auto-close the issue and the `no:assignee` candidate set stays polluted on the next cycle.
 - Record the PR number and URL for the rest of the cycle.
 
+{{#if HITL_MODE}}
+### 5b. HITL pause (only when `--hitl` flag is set)
+
+After the PR is open and the URL is recorded, check whether `--hitl` is present in the current invocation flags. If it is, and `--hitl-approved` is **not** present, pause here for human review instead of entering the CI/merge loop:
+
+1. Post a comment on the PR summarizing what was built and asking for review:
+   ```
+   mcp__github__add_issue_comment(
+     issue_number=<M>,
+     body="auto-engineer paused for human review. Spin up the branch locally, review the diff, then resume with:\n\n/auto-engineer --hitl --iteration N --phase wait --pr M --hitl-approved"
+   )
+   ```
+2. Send a push notification:
+   ```
+   PushNotification(
+     title="auto-engineer: PR #M ready for your review",
+     body="PR opened: <URL>. Review locally, then resume with: /auto-engineer --hitl --iteration N --phase wait --pr M --hitl-approved"
+   )
+   ```
+3. Schedule a fallback wakeup (1 hour) so the loop doesn't hang if the notification is missed:
+   ```
+   ScheduleWakeup(
+     delaySeconds=3600,
+     prompt="/auto-engineer --hitl --iteration N --phase wait --pr M --hitl-approved",
+     reason="auto-engineer: HITL timeout — resuming after 1h for PR #M"
+   )
+   ```
+4. End the turn with a plain-text status: `"HITL pause: PR #M is open at <URL>. Review it and resume with: /auto-engineer --hitl --iteration N --phase wait --pr M --hitl-approved"`
+
+When re-entering with `--hitl-approved`, skip this step entirely and proceed to step 6a normally.
+
+**Carry-through rule:** whenever `--hitl` is set, include it in every `ScheduleWakeup` prompt — it is a session-level sticky flag. Never drop it between iterations or poll ticks.
+
+{{/if}}
 ### 6. Wait for CI and review
 
 Auto-engineer owns the PR-wait loop directly — do **not** delegate to the `wait-for-pr` skill. Delegating would hand off the `ScheduleWakeup` thread and there would be no path back into this skill when CI finishes.
@@ -306,4 +342,4 @@ Stop conditions:
 - Continue past 8 iterations without a fresh user invocation.
 - Auto-fix test or build logic in step 6c (format and lint only; real fixes are follow-up commits).
 - Close an issue manually — let the merge do it via the PR body's `Closes #N`.
-- Ask the user for input — **never use `AskUserQuestion` or pause for a response**. If information is missing, make the most defensible choice and continue; if a stop condition applies, stop and report but do not ask.
+- Ask the user for input — **never use `AskUserQuestion` or pause for a response**. If information is missing, make the most defensible choice and continue; if a stop condition applies, stop and report but do not ask.{{#if HITL_MODE}} (Exception: `--hitl` mode intentionally pauses at step 5b — that pause is the feature, not a violation of this rule.){{/if}}
