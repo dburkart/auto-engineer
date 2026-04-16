@@ -30,6 +30,18 @@ if [ -f "$REPO_ROOT/.env" ]; then
     set +a
 fi
 
+# Verify Docker daemon is reachable before attempting any docker command.
+if ! docker info >/dev/null 2>&1; then
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "error: docker is not installed — install Docker from https://docs.docker.com/get-docker/" >&2
+    elif [ "$(uname -s)" = "Darwin" ]; then
+        echo "error: Docker daemon is not running — start Docker Desktop (open the app or run: open -a Docker)" >&2
+    else
+        echo "error: Docker daemon is not running — start it with: sudo systemctl start docker" >&2
+    fi
+    exit 1
+fi
+
 docker build -t "$IMAGE" -f "$REPO_ROOT/Dockerfile" "$REPO_ROOT"
 
 if [ "$build_only" -eq 1 ]; then
