@@ -30,7 +30,6 @@ ENV HOME=/home/agent \
 # --------------------------------------------------------------------
 # Project-specific toolchain setup (injected by `seed` based on stack)
 # --------------------------------------------------------------------
-# Shell/Bash only — no additional runtime needed.
 
 WORKDIR /home/agent/work
 
