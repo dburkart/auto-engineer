@@ -33,11 +33,11 @@ fi
 # Verify Docker daemon is reachable before attempting any docker command.
 if ! docker info >/dev/null 2>&1; then
     if ! command -v docker >/dev/null 2>&1; then
-        echo "error: docker is not installed — install Docker from https://docs.docker.com/get-docker/" >&2
+        echo "error: docker is not installed - install Docker from https://docs.docker.com/get-docker/" >&2
     elif [ "$(uname -s)" = "Darwin" ]; then
-        echo "error: Docker daemon is not running — start Docker Desktop (open the app or run: open -a Docker)" >&2
+        echo "error: Docker daemon is not running - start Docker Desktop (open the app or run: open -a Docker; if it is starting, wait a moment and retry)" >&2
     else
-        echo "error: Docker daemon is not running — start it with: sudo systemctl start docker" >&2
+        echo "error: Docker daemon is not running - try: sudo systemctl start docker (or your init system's equivalent)" >&2
     fi
     exit 1
 fi
