@@ -148,6 +148,14 @@ Present detected values and ask the user to confirm or override using `AskUserQu
 - If yes: what path prefix within the target? (e.g. `docs/agent-playbooks`, `.claude/playbooks`)
 - If no: policy will be inlined into skills as concise summaries
 
+**Group E — Issue tracker** (ask):
+- Which issue tracker should auto-engineer use?
+  - `github` (default) — issues live in `{{GITHUB_OWNER}}/{{GITHUB_REPO}}` on GitHub
+  - `todo` — issues live on an orphan `tracker` git branch managed by the `scripts/issues` CLI. `main` and feature branches never see issue files.
+- Default to `github` when the repo has a GitHub remote and `gh` works. Offer `todo` explicitly for greenfield / solo projects or when the user says they don't want to use GitHub Issues.
+
+The tracker playbook (`tracker.md`) is always written — it's an integration contract, not optional policy. Playbook opt-out in Group D only affects the five policy playbooks.
+
 ### For new projects
 
 Ask the user:
@@ -157,6 +165,7 @@ Ask the user:
 3. **GitHub owner/repo**: default to `<gh-user>/<dirname>` — confirm or override
 4. **Create label set**: offer to create standard P0–P3 + `bug`/`enhancement` labels
 5. **Playbooks**: same as Group D above
+6. **Issue tracker**: same as Group E above. For greenfield repos, `todo` is often a smoother starting point than creating labels + filing the first issues on GitHub.
 
 ---
 
@@ -180,6 +189,8 @@ PLAYBOOK_BUILD      → path if playbooks enabled, else ""
 PLAYBOOK_TEST       → path if playbooks enabled, else ""
 PLAYBOOK_PR_REVIEW  → path if playbooks enabled, else ""
 PLAYBOOK_PRIORITIZATION → path if playbooks enabled, else ""
+TRACKER             → "github" | "todo" (from Group E)
+PLAYBOOK_TRACKER    → always resolved (see below) — never empty, never under .claude/
 LABEL_TAXONOMY      → inline description of the project's label scheme
 PROJECT_IMAGE       → "<GITHUB_REPO>-auto-engineer"
 PROJECT_WORKDIR     → "/home/agent/work"
@@ -189,6 +200,17 @@ SELF_REVIEW_EXPERT  → user-provided expert persona for the review subagent (e.
 SELF_REVIEW_REASON  → short phrase naming what's missing ("review bots", "CI tests", "review bots or CI tests")
 TOOLCHAIN_SETUP     → Dockerfile snippet installing the target project's language toolchain (see below)
 ```
+
+### `PLAYBOOK_TRACKER` — path resolution
+
+`tracker.md` is a required integration contract, not optional policy — it must always be written somewhere the skills can read on `main`, and **never** under `.claude/` (issue data is project data, not Claude config) nor under `.auto-engineer/` (that directory is the todo CLI's private worktree area and is gitignored on `main`).
+
+| Condition | `PLAYBOOK_TRACKER` |
+|---|---|
+| User chose a playbook prefix in Group D | `<prefix>/tracker.md` |
+| User declined policy playbooks | `docs/agent-tracker.md` (create `docs/` if absent) |
+
+For `TRACKER=todo`, issue files do **not** live alongside the playbook — they live on the orphan `tracker` branch managed by `scripts/issues`. Only the playbook itself and the CLI live on `main`.
 
 ### `TOOLCHAIN_SETUP` — per-stack Dockerfile snippets
 
@@ -277,6 +299,36 @@ If `settings.local.json` was freshly created, add tech-stack-specific build perm
 | Python | `"Bash(pytest:*)"`, `"Bash(ruff:*)"`, `"Bash(python -m build:*)"` |
 | Make | `"Bash(make:*)"` |
 
+### Tracker playbook (always written)
+
+Copy the correct template based on `TRACKER`, substituting `{{GITHUB_OWNER}}` / `{{GITHUB_REPO}}` / `{{GITHUB_USER}}` as you go. Write to `PLAYBOOK_TRACKER` resolved in Phase 3.
+
+| `TRACKER` | Source template | Destination |
+|---|---|---|
+| `github` | `templates/playbooks/tracker-github.md` | `<target>/<PLAYBOOK_TRACKER>` |
+| `todo` | `templates/playbooks/tracker-todo.md` | `<target>/<PLAYBOOK_TRACKER>` |
+
+If the destination file already exists, **do not overwrite** — the skills will keep reading the user's version. Note it in the report.
+
+### To-do tracker CLI (only if `TRACKER=todo`)
+
+The todo tracker stores issue files on an orphan `tracker` git branch, accessed via a pinned worktree at `<target>/.auto-engineer/worktree/`. `main` never contains issue files. Seed does **not** create the orphan branch — the CLI self-bootstraps on its first invocation (creates branch, pushes to `origin`, attaches worktree).
+
+Install the CLI:
+
+```sh
+install -Dm755 templates/issues.sh <target>/scripts/issues
+```
+
+Add `.auto-engineer/` to the target's root `.gitignore` (append if the file exists, create it with a one-line comment + the entry if not). The CLI's worktree and any local metadata live under that path; committing it would re-introduce tracker state to `main`.
+
+```sh
+touch <target>/.gitignore
+grep -qxF '.auto-engineer/' <target>/.gitignore || printf '\n# auto-engineer todo-tracker worktree (managed by scripts/issues)\n.auto-engineer/\n' >> <target>/.gitignore
+```
+
+Do not initialize the `tracker` branch yourself — let the first `scripts/issues` call handle it. Seeding should leave `main` clean.
+
 ### Playbook stubs
 
 If the user chose to create playbooks, first ask:
@@ -299,7 +351,9 @@ Never overwrite stubs that already exist.
 
 ### Label creation
 
-If the user requested a standard label set:
+**Skip this section entirely when `TRACKER=todo`** — labels live in issue frontmatter, there's nothing to create on a remote service.
+
+If `TRACKER=github` and the user requested a standard label set:
 
 ```sh
 gh label create "priority:P0" --color "B60205" --description "Critical — blocks core functionality" --repo <GITHUB_OWNER>/<GITHUB_REPO>
@@ -336,6 +390,13 @@ Seeded auto-engineer into <target>:
   Config:
     .claude/settings.local.json (created)  |or|  .claude/settings.local.json (already exists — see note below)
     .claude/.gitignore
+
+  Tracker: <github | todo>
+    <PLAYBOOK_TRACKER> (created)  |or|  <PLAYBOOK_TRACKER> (already exists — kept)
+    [if TRACKER=todo:]
+    scripts/issues (installed)
+    .gitignore (added .auto-engineer/)
+    Note: the orphan `tracker` branch is created lazily on the first `scripts/issues` invocation.
 
   [If playbooks created:]
   Playbook stubs (fill these in before running the loop):

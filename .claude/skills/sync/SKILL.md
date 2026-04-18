@@ -71,8 +71,9 @@ Compare the two. Note: the template contains `{{TOOLCHAIN_SETUP}}` which seed re
 | `<ae-repo>/templates/auto-engineer.sh` | `<target>/scripts/auto-engineer.sh` |
 | `<ae-repo>/templates/restart-loop.sh` | `<target>/scripts/restart-loop.sh` |
 | `<ae-repo>/templates/docker-entrypoint.sh` | `<target>/scripts/docker-entrypoint.sh` |
+| `<ae-repo>/templates/issues.sh` | `<target>/scripts/issues` *(todo tracker only)* |
 
-For each script, check whether the target file exists. If not, classify as "template-only" and offer to pull it in.
+For each script, check whether the target file exists. If not, classify as "template-only" and offer to pull it in. Skip the `issues` row when the target's tracker playbook is the GitHub variant — `scripts/issues` only exists under `TRACKER=todo`.
 
 ---
 

@@ -5,7 +5,9 @@ description: Autonomously drive project work end-to-end — pick an unblocked is
 
 # auto-engineer
 
-{{#if PLAYBOOK_SDLC}}Read these shared playbooks first:
+Read the tracker playbook first: `{{PLAYBOOK_TRACKER}}`. Every tracker operation in this skill (list, pick, assign, comment, close) goes through one of its recipes — do **not** call `gh issue ...` or `mcp__github__*_issue` directly from this skill, so auto-engineer stays tracker-agnostic (GitHub Issues / local to-do / future backends).
+
+{{#if PLAYBOOK_SDLC}}Then read these shared playbooks:
 
 - `{{PLAYBOOK_SDLC}}`
 - `{{PLAYBOOK_BUILD}}`
@@ -53,14 +55,11 @@ The `--iteration N` flag is what enforces the cap across `/compact` boundaries �
 
 {{#if PLAYBOOK_PRIORITIZATION}}The picking rules live in `{{PLAYBOOK_PRIORITIZATION}}` — this step is the mechanical implementation of that policy.{{else}}Pick the highest-priority unblocked issue from the backlog.{{/if}}
 
-```sh
-gh issue list --search 'no:assignee' --state open \
-  --json number,title,labels,body,assignees
-```
+Enumerate open issues via the `list_open_issues` recipe in `{{PLAYBOOK_TRACKER}}`, then filter in memory:
 
-Filter out:
-- Issues labeled `blocked`, `needs-discussion`, `question`, `wontfix`.
-- Issues whose body references an unresolved dependency (e.g. "blocked on #NN" where #NN is still open).
+- **Unassigned only**: drop anything whose `assignees` is non-empty.
+- **Not labeled**: drop `blocked`, `needs-discussion`, `question`, `wontfix`.
+- **No unresolved dep**: drop issues whose body references an unresolved prerequisite (e.g. "blocked on #NN" where #NN is still open — resolve by calling `get_issue` on the referenced ID and checking its state).
 
 Sort preference (apply in order):
 
@@ -74,11 +73,15 @@ If the candidate list is empty → **stop** with message *"no unblocked issues �
 
 Assign and branch:
 
+- Run the `assign_issue` recipe in `{{PLAYBOOK_TRACKER}}` with assignee `{{GITHUB_USER}}`.
+- Then:
+
 ```sh
-gh issue edit <N> --add-assignee {{GITHUB_USER}}
 git checkout main && git pull
 git checkout -b <branch>   # e.g. m<N>-<slug> or <verb>-<slug>
 ```
+
+Issue IDs in branch names and slugs follow the tracker's ID format (e.g. GitHub `#18` → `m18-<slug>`; local to-do `#0042` → `m0042-<slug>`).
 
 Then rename the tmux window so a human glancing at the terminal can see which
 issue this cycle is on. `<slug>` is the same short slug used in the branch name
@@ -135,7 +138,7 @@ On failure: diagnose and fix in place. **Maximum 3 fix attempts per cycle.** If 
 - Coherent commits (not a single mega-commit, not micro-commits). Each with the standard `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>` trailer.
 - `git push -u origin <branch>`.
 - Open the PR via `mcp__github__create_pull_request` with the standard Summary + Test plan body. **No "generated with" footer.**
-- **Always include `Closes #<N>`** on its own line near the top of the PR body. Without it, the squash-merge won't auto-close the issue and the `no:assignee` candidate set stays polluted on the next cycle.
+- **Always include `Closes #<N>`** on its own line near the top of the PR body. The effect depends on the tracker — see the PR ↔ issue linking section in `{{PLAYBOOK_TRACKER}}`. For GitHub Issues this auto-closes on merge; for local to-do trackers it's a human-readable cross-reference only and step 7 must explicitly close the issue.
 - Record the PR number and URL for the rest of the cycle.
 
 {{#if HITL_MODE}}
@@ -268,6 +271,11 @@ Post-merge:
 git checkout main && git pull
 git branch -d <branch>
 ```
+
+Then check the PR ↔ issue linking section of `{{PLAYBOOK_TRACKER}}`:
+
+- If the tracker auto-closes via `Closes #<N>` (GitHub Issues): nothing more to do.
+- If it does not (local to-do): run the `close_issue` recipe on `<N>` now, passing the merged PR URL for the `closed_by_pr` field. Skipping this leaves the issue open and it'll reappear in next cycle's picker.
 
 ### 8. Capture follow-ups
 
