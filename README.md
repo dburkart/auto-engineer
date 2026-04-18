@@ -17,6 +17,7 @@ Check out [vibix](https://github.com/dburkart/vibix), an autonomously developed 
 |---|---|
 | `/seed` | One-time setup: asks for a target project path, detects its stack, writes customized skills and Docker files into it |
 | `/auto-engineer` | The main loop: pick → plan → implement → PR → wait → merge → repeat *(written into target by `/seed`)* |
+| `/auto-manager` | Epic orchestrator: scope a fuzzy topic or parent issue, file sub-issues, plan workstreams, and spawn parallel `/auto-engineer` subagents to ship the whole epic *(written into target)* |
 | `/sdlc` | Branch, commit, and PR conventions *(written into target)* |
 | `/file-issue` | File GitHub issues with correct labels *(written into target)* |
 | `/wait-for-pr` | Manual PR-wait loop with CI polling and auto-fix *(written into target)* |

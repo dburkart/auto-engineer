@@ -228,6 +228,7 @@ Write only skill files that do **not** already exist in `<target>/.claude/skills
 | Template | Output path |
 |---|---|
 | `templates/skills/auto-engineer/SKILL.md` | `<target>/.claude/skills/auto-engineer/SKILL.md` |
+| `templates/skills/auto-manager/SKILL.md` | `<target>/.claude/skills/auto-manager/SKILL.md` |
 | `templates/skills/sdlc/SKILL.md` | `<target>/.claude/skills/sdlc/SKILL.md` |
 | `templates/skills/file-issue/SKILL.md` | `<target>/.claude/skills/file-issue/SKILL.md` |
 | `templates/skills/wait-for-pr/SKILL.md` | `<target>/.claude/skills/wait-for-pr/SKILL.md` |
