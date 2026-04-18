@@ -13,7 +13,9 @@ Takes either a specific scoping issue or a fuzzy topic, and drives it through to
 3. **Plan** — partition issues into independent workstreams with a dependency graph.
 4. **Orchestrate** — spawn `/auto-engineer` subagents in parallel (worktree-isolated, background) and respawn as predecessors land.
 
-{{#if PLAYBOOK_SDLC}}Read these playbooks before running:
+Read the tracker playbook first: `{{PLAYBOOK_TRACKER}}`. All tracker operations in this skill — listing the backlog, fetching/editing/commenting/closing issues, filing new ones — go through its recipes. Do **not** invoke `gh issue ...` or `mcp__github__*_issue` directly.
+
+{{#if PLAYBOOK_SDLC}}Then read these shared playbooks:
 
 - `{{PLAYBOOK_SDLC}}`
 - `{{PLAYBOOK_PRIORITIZATION}}`
@@ -28,7 +30,8 @@ Also read the sibling skills you'll call into:
 ## Hard requirements
 
 - `/auto-engineer` must exist in this project. If not, **stop** and tell the user.
-- The repo must have `gh`, a code-review gate (CODEOWNERS + reviewers, a review bot, or equivalent), and CI wired up — auto-engineer's loop assumes these.
+- `{{PLAYBOOK_TRACKER}}` must exist. Without it this skill has no way to read or mutate the backlog.
+- The repo must have `gh`, a code-review gate (CODEOWNERS + reviewers, a review bot, or equivalent), and CI wired up — auto-engineer's loop assumes these. (Note: `gh` is required for PR/CI operations regardless of tracker; for GitHub-tracker projects it's also used by the tracker playbook's recipes.)
 
 ## When to invoke
 
@@ -50,9 +53,9 @@ If the input is fuzzy, do not skip phase 0 — the user hasn't given you a filed
 
 Goal: turn a vague topic into a concrete, user-approved scope before any issue is filed or edited.
 
-No destructive actions in this phase. No `gh issue create`, `gh issue edit`, `gh issue close`, PR, or branch creation. Only read operations.
+No destructive actions in this phase. No tracker writes (`create_issue`, `update_issue`, `close_issue`, `comment_on_issue`), no PR or branch creation. Only read operations (`list_open_issues`, `get_issue`, `search_issues`).
 
-1. **List the open backlog.** `gh issue list --state open --limit 200 --json number,title,labels,body`. Sort by priority then recency.
+1. **List the open backlog.** Run the `list_open_issues` recipe in `{{PLAYBOOK_TRACKER}}`. Sort by priority then recency.
 
 2. **Explore the codebase** via an `Explore` subagent with the fuzzy topic as input. Ask for: what code exists in the topic area, which files/modules are implicated, which recent PRs touched the area (run `git log --oneline -n 50 -- <likely paths>` if useful). Keep ≤800 words.
 
@@ -82,7 +85,7 @@ Only now proceed to phase 1 with the approved scope.
 
 Goal: turn the spec (or the approved phase-0 scope) into a triaged list of sub-issues under the parent.
 
-1. **Fetch the spec.** `gh issue view $N --repo $OWNER/$REPO` for body. If the body links an attachment on an SSO-gated URL (enterprise attachments often return 404 via `GITHUB_TOKEN`), ask the user to paste the spec inline — don't fight the SSO. Fuzzy-scope entry point skips this step since phase 0 already produced the approved scope.
+1. **Fetch the spec.** Run the `get_issue` recipe in `{{PLAYBOOK_TRACKER}}` with the parent ID. If the body links an attachment on an SSO-gated URL (enterprise attachments often return 404 via `GITHUB_TOKEN`), ask the user to paste the spec inline — don't fight the SSO. Fuzzy-scope entry point skips this step since phase 0 already produced the approved scope.
 
 2. **Inspect the codebase.** Dispatch an `Explore` subagent with a structured prompt asking for: repo layout, existing infrastructure in the spec's problem area, adjacent conventions (schema libraries, test runners, CI), and which pieces clearly don't exist. Keep the report ≤800 words. The Explore agent's job is to surface *what exists and what's missing* — not to propose solutions. Skip this step if phase 0 already produced an equivalent codebase map for the same topic.
 
@@ -99,9 +102,9 @@ Goal: turn the spec (or the approved phase-0 scope) into a triaged list of sub-i
    - **Testing** (unit + integration + E2E where they apply).
    - **Context** (parent epic #, related files, pairs-with issues).
 
-5. **Post a summary comment on the parent epic** listing the filed issues with a dependency-ordered outline. This is the human-readable map of the epic.
+5. **Post a summary comment on the parent epic** listing the filed issues with a dependency-ordered outline. Use the `comment_on_issue` recipe in `{{PLAYBOOK_TRACKER}}`. This is the human-readable map of the epic.
 
-Cross-repo work: when an issue belongs in a sibling repo (shared infra, different team), file an **advisory RFC**:
+Cross-repo work (**GitHub tracker only**; local to-do has no cross-repo story): when an issue belongs in a sibling repo, file an **advisory RFC**:
 - Title prefix `[RFC]`.
 - Labels: `question` (so sibling auto-engineer skips it) + an appropriate `priority:*`.
 - Body notes "Advisory / RFC only — no action requested" at the top.
@@ -114,11 +117,11 @@ Goal: let the user reshape the plan with minimum friction.
 
 After phase 1, stop and wait for feedback. When the user sends scope feedback:
 
-- **Rescope**: `gh issue edit` the title + body. Post a comment explaining the rescope so history is legible.
-- **Fold minor into existing**: `gh issue comment` the receiving issue to add the requirement. Don't open a new issue for work that's genuinely a clarification.
-- **Drop**: `gh issue close` with a comment naming the replacement issue(s).
+- **Rescope**: run `update_issue` from `{{PLAYBOOK_TRACKER}}` on the title + body, then `comment_on_issue` explaining the rescope so history is legible.
+- **Fold minor into existing**: `comment_on_issue` on the receiving issue to add the requirement. Don't open a new issue for work that's genuinely a clarification.
+- **Drop**: `close_issue` with a comment naming the replacement issue(s).
 - **Add missing**: file via `/file-issue`.
-- **Block one on another**: add a comment on the blocker and downstream. Don't rely on GitHub's native "linked issues" only — the comment is the durable signal.
+- **Block one on another**: `comment_on_issue` on both the blocker and downstream. The comment is the durable signal — don't rely on tracker-native "linked issues" features that not every tracker implements.
 
 When the user flags a cross-project preference ("use zod", "don't auto-run scorers"), save it as a **memory** (`feedback_*.md`) so it outlives the session. Then apply it to the relevant filed issues.
 
@@ -223,6 +226,6 @@ Each auto-engineer subagent returns a completion summary. When you receive one:
 
 - Spawn two agents that will touch overlapping files at the same time.
 - Skip phase 1's codebase inspection — shipping an issue list without knowing what exists leads to duplicate scaffolding.
-- Use `gh issue create` directly — always go through `/file-issue` so priority labels land correctly.
+- Call `gh issue create`, `mcp__github__create_issue`, or any other tracker-specific write command directly — always go through `/file-issue` (which in turn uses `{{PLAYBOOK_TRACKER}}`) so priority labels land correctly and the skill stays tracker-agnostic.
 - Merge any PR yourself in the orchestrator — the auto-engineer subagent does the merge. The orchestrator only spawns and tracks.
 - Proceed into follow-ups without confirming with the user after the primary epic closes.

@@ -1,13 +1,15 @@
 ---
 name: file-issue
-description: File a new GitHub issue with the correct priority and area labels applied up front. Use whenever an agent needs to capture a new unit of work — follow-ups from a merged PR, TODOs discovered while coding, or manually-requested issues. Invoked as `/file-issue`.
+description: File a new tracker issue with the correct priority and area labels applied up front. Use whenever an agent needs to capture a new unit of work — follow-ups from a merged PR, TODOs discovered while coding, or manually-requested issues. Invoked as `/file-issue`.
 ---
 
 # file-issue
 
-Files a single GitHub issue against `{{GITHUB_OWNER}}/{{GITHUB_REPO}}` with priority and classification labels applied on creation. Keeps the backlog triaged in one step instead of leaving un-labeled issues that pollute the auto-engineer candidate set.
+Files a single issue against this project's tracker with priority and classification labels applied on creation. Keeps the backlog triaged in one step instead of leaving un-labeled issues that pollute the auto-engineer candidate set.
 
-{{#if PLAYBOOK_PRIORITIZATION}}Read `{{PLAYBOOK_PRIORITIZATION}}` before running — the label taxonomy, priority rules, and triage policy all live there. This skill is the mechanical front-end for that policy.{{/if}}
+This skill is tracker-agnostic: all tracker operations (search, create, comment) are performed via the recipes in `{{PLAYBOOK_TRACKER}}`. **Read that playbook first** — it defines the concrete commands, ID format, and label representation for this project's tracker.
+
+{{#if PLAYBOOK_PRIORITIZATION}}Also read `{{PLAYBOOK_PRIORITIZATION}}` before running — the label taxonomy, priority rules, and triage policy all live there. This skill is the mechanical front-end for that policy.{{/if}}
 
 ## Label taxonomy
 
@@ -19,7 +21,7 @@ Files a single GitHub issue against `{{GITHUB_OWNER}}/{{GITHUB_REPO}}` with prio
 - A `TODO`/`FIXME` was introduced that deserves tracking.
 - The user says "file an issue for …" or invokes `/file-issue` directly.
 
-Do **not** use this skill to edit an existing issue — use `mcp__github__update_issue` for that.
+Do **not** use this skill to edit an existing issue — use the `update_issue` recipe in `{{PLAYBOOK_TRACKER}}` directly for that.
 
 ## Inputs
 
@@ -28,7 +30,7 @@ Either accept them as free-form arguments after `/file-issue`, or infer from the
 - **title** — imperative phrase, ≤ 72 chars, no emoji.
 - **motivation** — 1–3 sentences on why this matters and what it unblocks.
 - **work** — bulleted sub-tasks, concrete enough to act on cold in a week (file paths, type names, function signatures when known).
-- **context** — relevant commit SHAs, file paths, existing issue numbers, or the PR that surfaced the follow-up.
+- **context** — relevant commit SHAs, file paths, existing issue IDs, or the PR that surfaced the follow-up.
 
 If any of those are missing and **cannot be reasonably inferred**, skip the issue silently — do not ask the user. This skill may be called from auto-engineer or other agents where user interaction is not available; asking would block the loop.
 
@@ -36,19 +38,13 @@ If any of those are missing and **cannot be reasonably inferred**, skip the issu
 
 ### 1. Dedupe
 
-Search open issues for overlap before filing:
+Search open issues for overlap using the `search_issues` recipe in `{{PLAYBOOK_TRACKER}}` with keywords drawn from the title.
 
-```
-mcp__github__search_issues(
-  query="repo:{{GITHUB_OWNER}}/{{GITHUB_REPO}} is:open <keywords from title>",
-)
-```
-
-If a strong duplicate exists, **do not** file. Instead, add a comment on the existing issue linking the new context (via `mcp__github__add_issue_comment`) and return its URL.
+If a strong duplicate exists, **do not** file. Instead, add a comment on the existing issue via the `comment_on_issue` recipe linking the new context, and return that issue's ID/URL.
 
 ### 2. Decide labels
 
-Follow the triage rules above ({{#if PLAYBOOK_PRIORITIZATION}}and in `{{PLAYBOOK_PRIORITIZATION}}`{{/if}}):
+Follow the triage rules above{{#if PLAYBOOK_PRIORITIZATION}} and in `{{PLAYBOOK_PRIORITIZATION}}`{{/if}}:
 
 1. Assign exactly one `priority:P0` / `P1` / `P2` / `P3` label.
 2. Assign any area, type, or classification labels appropriate to the work.
@@ -72,17 +68,9 @@ Use the canonical template:
 
 ### 4. File
 
-```
-mcp__github__create_issue(
-  owner="{{GITHUB_OWNER}}",
-  repo="{{GITHUB_REPO}}",
-  title="<title>",
-  body="<templated body>",
-  labels=["priority:PN", ...],
-)
-```
+Call the `create_issue` recipe in `{{PLAYBOOK_TRACKER}}` with the composed title, body, and label list.
 
-Report the new issue number and URL back to the caller.
+Report the new issue ID and URL (if the tracker has one) back to the caller.
 
 ### 5. Record
 
@@ -95,3 +83,4 @@ If the issue was filed from auto-engineer's follow-up capture pass (step 8), inc
 - Invent new label values in-flight.
 - File speculative "nice-to-have" items with no concrete motivation — they clutter the backlog and degrade the auto-engineer candidate set.
 - Close, reassign, or relabel issues other than the one being filed.
+- Call `gh issue create`, `mcp__github__create_issue`, or any tracker-specific command directly — always go through the `{{PLAYBOOK_TRACKER}}` recipes so this skill stays tracker-agnostic.
